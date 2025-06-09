@@ -8,3 +8,13 @@ CREATE TABLE users (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP
 );
+
+CREATE TABLE orders (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id), -- terkait dengan auth Supabase
+  service_type TEXT,
+  status TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+

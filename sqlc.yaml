@@ -1,12 +1,27 @@
 version: "2"
 sql:
-  - engine: "postgresql"
-    queries: "internal/db/queries"
+  - name: "user"
+    engine: "postgresql"
     schema: "schema.sql"
+    queries: "internal/db/queries/user.sql"
     gen:
       go:
-        package: "db"
-        out: "internal/db"
+        package: "user"
+        out: "internal/db/user"
         sql_package: "pgx/v5"
         emit_json_tags: true
         emit_interface: true
+        omit_unused_structs: true
+
+  - name: "order"
+    engine: "postgresql"
+    schema: "schema.sql"
+    queries: "internal/db/queries/order.sql"
+    gen:
+      go:
+        package: "order"
+        out: "internal/db/order"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true
+        omit_unused_structs: true

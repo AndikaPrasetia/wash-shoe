@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/AndikaPrasetia/wash-shoe/internal/db"
+	"github.com/AndikaPrasetia/wash-shoe/internal/db/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -12,20 +12,20 @@ type UserRepo interface {
 	Create(ctx context.Context, u model.User) (model.User, error)
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
 	FindByID(ctx context.Context, id pgtype.UUID) (*model.User, error)
-	Update(ctx context.Context, u db.User) (model.User, error)
+	Update(ctx context.Context, u user.UpdateUserParams) (model.User, error)
 	Delete(ctx context.Context, id pgtype.UUID) error
 }
 
 type userRepo struct {
-	q *db.Queries
+	q *user.Queries
 }
 
-func NewUserRepo(q *db.Queries) UserRepo {
+func NewUserRepo(q *user.Queries) UserRepo {
 	return &userRepo{q: q}
 }
 
 func (r *userRepo) Create(ctx context.Context, u model.User) (model.User, error) {
-	params := db.CreateUserParams{
+	params := user.CreateUserParams{
 		Name:     u.Name,
 		Email:    u.Email,
 		Password: u.Password,
@@ -66,14 +66,17 @@ func (r *userRepo) FindByID(ctx context.Context, id pgtype.UUID) (*model.User, e
 		return nil, err
 	}
 	return &model.User{
-		Name:  user.Name,
-		Email: user.Email,
-		Role:  user.Role,
+		ID:        user.ID.String(),
+		Name:      user.Name,
+		Email:     user.Email,
+		Role:      user.Role,
+		CreatedAt: user.CreatedAt.Time,
+		UpdatedAt: user.UpdatedAt.Time,
 	}, nil
 }
 
-func (r *userRepo) Update(ctx context.Context, u db.User) (model.User, error) {
-	params := db.UpdateUserParams{
+func (r *userRepo) Update(ctx context.Context, u user.UpdateUserParams) (model.User, error) {
+	params := user.UpdateUserParams{
 		ID:       u.ID,
 		Name:     u.Name,
 		Email:    u.Email,
