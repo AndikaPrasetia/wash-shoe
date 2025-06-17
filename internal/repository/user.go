@@ -9,94 +9,85 @@ import (
 )
 
 type UserRepo interface {
-	Create(ctx context.Context, u model.User) (model.User, error)
-	FindByEmail(ctx context.Context, email string) (*model.User, error)
+	Create(ctx context.Context, arg user.CreatePublicUserParams) (model.User, error)
 	FindByID(ctx context.Context, id pgtype.UUID) (*model.User, error)
-	Update(ctx context.Context, u user.UpdateUserParams) (model.User, error)
+	FindByEmail(ctx context.Context, email string) (*model.User, error)
+	Update(ctx context.Context, arg user.UpdatePublicUserParams) (model.User, error)
 	Delete(ctx context.Context, id pgtype.UUID) error
 }
 
 type userRepo struct {
-	q *user.Queries
+	q user.Querier
 }
 
-func NewUserRepo(q *user.Queries) UserRepo {
+func NewUserRepo(q user.Querier) UserRepo {
 	return &userRepo{q: q}
 }
 
-func (r *userRepo) Create(ctx context.Context, u model.User) (model.User, error) {
-	params := user.CreateUserParams{
-		Name:     u.Name,
-		Email:    u.Email,
-		Password: u.Password,
-		Role:     u.Role,
-	}
-	created, err := r.q.CreateUser(ctx, params)
+func (r *userRepo) Create(ctx context.Context, arg user.CreatePublicUserParams) (model.User, error) {
+	pu, err := r.q.CreatePublicUser(ctx, arg)
 	if err != nil {
 		return model.User{}, err
 	}
 	return model.User{
-		ID:        created.ID.String(),
-		Name:      created.Name,
-		Email:     created.Email,
-		Role:      created.Role,
-		CreatedAt: created.CreatedAt.Time,
-		UpdatedAt: created.UpdatedAt.Time,
-	}, nil
-}
-
-func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {
-	user, err := r.q.GetUserByEmail(ctx, email)
-	if err != nil {
-		return nil, err
-	}
-	return &model.User{
-		ID:        user.ID.String(),
-		Name:      user.Name,
-		Email:     user.Email,
-		Role:      user.Role,
-		CreatedAt: user.CreatedAt.Time,
-		UpdatedAt: user.UpdatedAt.Time,
+		ID:          pu.ID.String(),
+		FullName:    pu.FullName.String,
+		Email:       pu.Email,
+		PhoneNumber: pu.PhoneNumber.String,
+		Role:        pu.Role,
+		CreatedAt:   pu.CreatedAt.Time,
+		UpdatedAt:   pu.UpdatedAt.Time,
 	}, nil
 }
 
 func (r *userRepo) FindByID(ctx context.Context, id pgtype.UUID) (*model.User, error) {
-	user, err := r.q.GetUserByID(ctx, id)
+	u, err := r.q.GetUserByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return &model.User{
-		ID:        user.ID.String(),
-		Name:      user.Name,
-		Email:     user.Email,
-		Role:      user.Role,
-		CreatedAt: user.CreatedAt.Time,
-		UpdatedAt: user.UpdatedAt.Time,
+		ID:          u.ID.String(),
+		FullName:    u.FullName.String,
+		Email:       u.Email,
+		PhoneNumber: u.PhoneNumber.String,
+		Role:        u.Role,
+		CreatedAt:   u.CreatedAt.Time,
+		UpdatedAt:   u.UpdatedAt.Time,
 	}, nil
 }
 
-func (r *userRepo) Update(ctx context.Context, u user.UpdateUserParams) (model.User, error) {
-	params := user.UpdateUserParams{
-		ID:       u.ID,
-		Name:     u.Name,
-		Email:    u.Email,
-		Password: u.Password,
-		Role:     u.Role,
+func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {
+	u, err := r.q.GetPublicUserByEmail(ctx, email)
+	if err != nil {
+		return nil, err
 	}
-	updated, err := r.q.UpdateUser(ctx, params)
+	return &model.User{
+		ID:          u.ID.String(),
+		FullName:    u.FullName.String,
+		Email:       u.Email,
+		PhoneNumber: u.PhoneNumber.String,
+		Role:        u.Role,
+		CreatedAt:   u.CreatedAt.Time,
+		UpdatedAt:   u.UpdatedAt.Time,
+	}, nil
+}
+
+func (r *userRepo) Update(ctx context.Context, arg user.UpdatePublicUserParams) (model.User, error) {
+	u, err := r.q.UpdatePublicUser(ctx, arg)
 	if err != nil {
 		return model.User{}, err
 	}
 	return model.User{
-		ID:        updated.ID.String(),
-		Name:      updated.Name,
-		Email:     updated.Email,
-		Role:      updated.Role,
-		CreatedAt: updated.CreatedAt.Time,
-		UpdatedAt: updated.UpdatedAt.Time,
+		ID:          u.ID.String(),
+		FullName:    u.FullName.String,
+		Email:       u.Email,
+		PhoneNumber: u.PhoneNumber.String,
+		Role:        u.Role,
+		CreatedAt:   u.CreatedAt.Time,
+		UpdatedAt:   u.UpdatedAt.Time,
 	}, nil
 }
 
 func (r *userRepo) Delete(ctx context.Context, id pgtype.UUID) error {
-	return r.q.DeleteUser(ctx, id)
+	return r.q.DeleteAuthUser(ctx, id)
 }

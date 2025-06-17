@@ -11,11 +11,31 @@ import (
 )
 
 type Querier interface {
-	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
-	DeleteUser(ctx context.Context, id pgtype.UUID) error
-	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
-	GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDRow, error)
-	UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error)
+	// Audit Log
+	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuthAuditLog, error)
+	// Auth Users
+	CreateAuthUser(ctx context.Context, arg CreateAuthUserParams) (AuthUser, error)
+	// Public Users
+	CreatePublicUser(ctx context.Context, arg CreatePublicUserParams) (User, error)
+	// Refresh Tokens
+	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (AuthRefreshToken, error)
+	DeleteAuthUser(ctx context.Context, id pgtype.UUID) error
+	// Delete Expired Tokens
+	DeleteExpiredTokens(ctx context.Context) error
+	GetAuthUserByEmail(ctx context.Context, email string) (AuthUser, error)
+	GetPublicUserByEmail(ctx context.Context, email string) (User, error)
+	// Get Refresh Token by Hash
+	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (AuthRefreshToken, error)
+	// Get User by ID
+	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	ListAuditLogs(ctx context.Context, actorID pgtype.UUID) ([]AuthAuditLog, error)
+	// Revoke All Tokens for User
+	RevokeAllTokensForUser(ctx context.Context, userID pgtype.UUID) error
+	RevokeRefreshToken(ctx context.Context, id pgtype.UUID) error
+	UpdateAuthUserLastLogin(ctx context.Context, id pgtype.UUID) error
+	UpdatePublicUser(ctx context.Context, arg UpdatePublicUserParams) (User, error)
+	// Update User Role (admin only)
+	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error
 }
 
 var _ Querier = (*Queries)(nil)

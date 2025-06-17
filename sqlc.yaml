@@ -12,16 +12,19 @@ sql:
         emit_json_tags: true
         emit_interface: true
         omit_unused_structs: true
+        emit_db_tags: true
+        emit_prepared_queries: true
+        emit_exact_table_names: false
 
-  - name: "order"
-    engine: "postgresql"
-    schema: "schema.sql"
-    queries: "internal/db/queries/order.sql"
-    gen:
-      go:
-        package: "order"
-        out: "internal/db/order"
-        sql_package: "pgx/v5"
-        emit_json_tags: true
-        emit_interface: true
-        omit_unused_structs: true
+  # - name: "order"
+  #   engine: "postgresql"
+  #   schema: "schema.sql"
+  #   queries: "internal/db/queries/order.sql"
+  #   gen:
+  #     go:
+  #       package: "order"
+  #       out: "internal/db/order"
+  #       sql_package: "pgx/v5"
+  #       emit_json_tags: true
+  #       emit_interface: true
+  #       omit_unused_structs: true

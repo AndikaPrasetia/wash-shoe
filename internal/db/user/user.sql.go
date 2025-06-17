@@ -11,40 +11,90 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (name, email, password, role)
-VALUES ($1, $2, $3, $4)
-RETURNING id, name, email, role, created_at, updated_at
+const createAuditLog = `-- name: CreateAuditLog :one
+INSERT INTO auth.audit_log (actor_id, action, details)
+VALUES ($1, $2, $3)
+RETURNING id, actor_id, action, details, created_at
 `
 
-type CreateUserParams struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
+type CreateAuditLogParams struct {
+	ActorID pgtype.UUID `db:"actor_id" json:"actor_id"`
+	Action  string      `db:"action" json:"action"`
+	Details []byte      `db:"details" json:"details"`
 }
 
-type CreateUserRow struct {
-	ID        pgtype.UUID      `json:"id"`
-	Name      string           `json:"name"`
-	Email     string           `json:"email"`
-	Role      string           `json:"role"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
-}
-
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
-	row := q.db.QueryRow(ctx, createUser,
-		arg.Name,
-		arg.Email,
-		arg.Password,
-		arg.Role,
-	)
-	var i CreateUserRow
+// Audit Log
+func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuthAuditLog, error) {
+	row := q.db.QueryRow(ctx, createAuditLog, arg.ActorID, arg.Action, arg.Details)
+	var i AuthAuditLog
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
+		&i.ActorID,
+		&i.Action,
+		&i.Details,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createAuthUser = `-- name: CreateAuthUser :one
+INSERT INTO auth.users (email, password_hash)
+VALUES ($1, $2)
+RETURNING id, email, password_hash, created_at, updated_at, confirmed_at, last_sign_in_at
+`
+
+type CreateAuthUserParams struct {
+	Email        string      `db:"email" json:"email"`
+	PasswordHash pgtype.Text `db:"password_hash" json:"password_hash"`
+}
+
+// Auth Users
+func (q *Queries) CreateAuthUser(ctx context.Context, arg CreateAuthUserParams) (AuthUser, error) {
+	row := q.db.QueryRow(ctx, createAuthUser, arg.Email, arg.PasswordHash)
+	var i AuthUser
+	err := row.Scan(
+		&i.ID,
 		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ConfirmedAt,
+		&i.LastSignInAt,
+	)
+	return i, err
+}
+
+const createPublicUser = `-- name: CreatePublicUser :one
+INSERT INTO public.users (id, email, full_name, phone_number, role)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, full_name, email, phone_number, provider, provider_id, role, created_at, updated_at
+`
+
+type CreatePublicUserParams struct {
+	ID          pgtype.UUID `db:"id" json:"id"`
+	Email       string      `db:"email" json:"email"`
+	FullName    pgtype.Text `db:"full_name" json:"full_name"`
+	PhoneNumber pgtype.Text `db:"phone_number" json:"phone_number"`
+	Role        string      `db:"role" json:"role"`
+}
+
+// Public Users
+func (q *Queries) CreatePublicUser(ctx context.Context, arg CreatePublicUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createPublicUser,
+		arg.ID,
+		arg.Email,
+		arg.FullName,
+		arg.PhoneNumber,
+		arg.Role,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FullName,
+		&i.Email,
+		&i.PhoneNumber,
+		&i.Provider,
+		&i.ProviderID,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -52,66 +102,128 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
-const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM users WHERE id = $1
+const createRefreshToken = `-- name: CreateRefreshToken :one
+INSERT INTO auth.refresh_tokens (user_id, token_hash, expires_at)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, token_hash, expires_at, created_at, revoked
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteUser, id)
+type CreateRefreshTokenParams struct {
+	UserID    pgtype.UUID        `db:"user_id" json:"user_id"`
+	TokenHash string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+}
+
+// Refresh Tokens
+func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (AuthRefreshToken, error) {
+	row := q.db.QueryRow(ctx, createRefreshToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
+	var i AuthRefreshToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.Revoked,
+	)
+	return i, err
+}
+
+const deleteAuthUser = `-- name: DeleteAuthUser :exec
+DELETE FROM auth.users WHERE id = $1
+`
+
+func (q *Queries) DeleteAuthUser(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAuthUser, id)
 	return err
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, name, email, role, created_at, updated_at
-FROM users
-WHERE email = $1
+const deleteExpiredTokens = `-- name: DeleteExpiredTokens :exec
+DELETE FROM auth.refresh_tokens 
+WHERE expires_at < NOW() AND revoked = true
 `
 
-type GetUserByEmailRow struct {
-	ID        pgtype.UUID      `json:"id"`
-	Name      string           `json:"name"`
-	Email     string           `json:"email"`
-	Role      string           `json:"role"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+// Delete Expired Tokens
+func (q *Queries) DeleteExpiredTokens(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteExpiredTokens)
+	return err
 }
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
-	row := q.db.QueryRow(ctx, getUserByEmail, email)
-	var i GetUserByEmailRow
+const getAuthUserByEmail = `-- name: GetAuthUserByEmail :one
+SELECT id, email, password_hash, created_at, updated_at, confirmed_at, last_sign_in_at FROM auth.users WHERE email = $1 LIMIT 1
+`
+
+func (q *Queries) GetAuthUserByEmail(ctx context.Context, email string) (AuthUser, error) {
+	row := q.db.QueryRow(ctx, getAuthUserByEmail, email)
+	var i AuthUser
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
 		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ConfirmedAt,
+		&i.LastSignInAt,
+	)
+	return i, err
+}
+
+const getPublicUserByEmail = `-- name: GetPublicUserByEmail :one
+SELECT id, full_name, email, phone_number, provider, provider_id, role, created_at, updated_at FROM public.users WHERE email = $1
+`
+
+func (q *Queries) GetPublicUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRow(ctx, getPublicUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FullName,
+		&i.Email,
+		&i.PhoneNumber,
+		&i.Provider,
+		&i.ProviderID,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRefreshTokenByHash = `-- name: GetRefreshTokenByHash :one
+SELECT id, user_id, token_hash, expires_at, created_at, revoked FROM auth.refresh_tokens 
+WHERE token_hash = $1 AND revoked = false
+`
+
+// Get Refresh Token by Hash
+func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (AuthRefreshToken, error) {
+	row := q.db.QueryRow(ctx, getRefreshTokenByHash, tokenHash)
+	var i AuthRefreshToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.Revoked,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, email, role, created_at, updated_at
-FROM users
-WHERE id = $1
+SELECT id, full_name, email, phone_number, provider, provider_id, role, created_at, updated_at FROM public.users WHERE id = $1 LIMIT 1
 `
 
-type GetUserByIDRow struct {
-	ID        pgtype.UUID      `json:"id"`
-	Name      string           `json:"name"`
-	Email     string           `json:"email"`
-	Role      string           `json:"role"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
-}
-
-func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDRow, error) {
+// Get User by ID
+func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
-	var i GetUserByIDRow
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
+		&i.FullName,
 		&i.Email,
+		&i.PhoneNumber,
+		&i.Provider,
+		&i.ProviderID,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -119,46 +231,107 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDR
 	return i, err
 }
 
-const updateUser = `-- name: UpdateUser :one
-UPDATE users
-SET name = $2, email = $3, password = $4, role = $5, updated_at = NOW()
-WHERE id = $1
-RETURNING id, name, email, role, created_at, updated_at
+const listAuditLogs = `-- name: ListAuditLogs :many
+SELECT id, actor_id, action, details, created_at FROM auth.audit_log WHERE actor_id = $1 ORDER BY created_at DESC
 `
 
-type UpdateUserParams struct {
-	ID       pgtype.UUID `json:"id"`
-	Name     string      `json:"name"`
-	Email    string      `json:"email"`
-	Password string      `json:"password"`
-	Role     string      `json:"role"`
+func (q *Queries) ListAuditLogs(ctx context.Context, actorID pgtype.UUID) ([]AuthAuditLog, error) {
+	rows, err := q.db.Query(ctx, listAuditLogs, actorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuthAuditLog
+	for rows.Next() {
+		var i AuthAuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ActorID,
+			&i.Action,
+			&i.Details,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-type UpdateUserRow struct {
-	ID        pgtype.UUID      `json:"id"`
-	Name      string           `json:"name"`
-	Email     string           `json:"email"`
-	Role      string           `json:"role"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+const revokeAllTokensForUser = `-- name: RevokeAllTokensForUser :exec
+UPDATE auth.refresh_tokens 
+SET revoked = true 
+WHERE user_id = $1
+`
+
+// Revoke All Tokens for User
+func (q *Queries) RevokeAllTokensForUser(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, revokeAllTokensForUser, userID)
+	return err
 }
 
-func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error) {
-	row := q.db.QueryRow(ctx, updateUser,
-		arg.ID,
-		arg.Name,
-		arg.Email,
-		arg.Password,
-		arg.Role,
-	)
-	var i UpdateUserRow
+const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
+UPDATE auth.refresh_tokens SET revoked = true WHERE id = $1
+`
+
+func (q *Queries) RevokeRefreshToken(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, revokeRefreshToken, id)
+	return err
+}
+
+const updateAuthUserLastLogin = `-- name: UpdateAuthUserLastLogin :exec
+UPDATE auth.users SET last_sign_in_at = NOW() WHERE id = $1
+`
+
+func (q *Queries) UpdateAuthUserLastLogin(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, updateAuthUserLastLogin, id)
+	return err
+}
+
+const updatePublicUser = `-- name: UpdatePublicUser :one
+UPDATE public.users
+SET full_name = $2, phone_number = $3, updated_at = NOW()
+WHERE id = $1
+RETURNING id, full_name, email, phone_number, provider, provider_id, role, created_at, updated_at
+`
+
+type UpdatePublicUserParams struct {
+	ID          pgtype.UUID `db:"id" json:"id"`
+	FullName    pgtype.Text `db:"full_name" json:"full_name"`
+	PhoneNumber pgtype.Text `db:"phone_number" json:"phone_number"`
+}
+
+func (q *Queries) UpdatePublicUser(ctx context.Context, arg UpdatePublicUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, updatePublicUser, arg.ID, arg.FullName, arg.PhoneNumber)
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
+		&i.FullName,
 		&i.Email,
+		&i.PhoneNumber,
+		&i.Provider,
+		&i.ProviderID,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateUserRole = `-- name: UpdateUserRole :exec
+UPDATE public.users SET role = $1 WHERE id = $2
+`
+
+type UpdateUserRoleParams struct {
+	Role string      `db:"role" json:"role"`
+	ID   pgtype.UUID `db:"id" json:"id"`
+}
+
+// Update User Role (admin only)
+func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error {
+	_, err := q.db.Exec(ctx, updateUserRole, arg.Role, arg.ID)
+	return err
 }

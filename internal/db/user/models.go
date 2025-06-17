@@ -3,3 +3,46 @@
 //   sqlc v1.29.0
 
 package user
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type AuthAuditLog struct {
+	ID        int32              `db:"id" json:"id"`
+	ActorID   pgtype.UUID        `db:"actor_id" json:"actor_id"`
+	Action    string             `db:"action" json:"action"`
+	Details   []byte             `db:"details" json:"details"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type AuthRefreshToken struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	UserID    pgtype.UUID        `db:"user_id" json:"user_id"`
+	TokenHash string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	Revoked   pgtype.Bool        `db:"revoked" json:"revoked"`
+}
+
+type AuthUser struct {
+	ID           pgtype.UUID        `db:"id" json:"id"`
+	Email        string             `db:"email" json:"email"`
+	PasswordHash pgtype.Text        `db:"password_hash" json:"password_hash"`
+	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ConfirmedAt  pgtype.Timestamptz `db:"confirmed_at" json:"confirmed_at"`
+	LastSignInAt pgtype.Timestamptz `db:"last_sign_in_at" json:"last_sign_in_at"`
+}
+
+type User struct {
+	ID          pgtype.UUID        `db:"id" json:"id"`
+	FullName    pgtype.Text        `db:"full_name" json:"full_name"`
+	Email       string             `db:"email" json:"email"`
+	PhoneNumber pgtype.Text        `db:"phone_number" json:"phone_number"`
+	Provider    pgtype.Text        `db:"provider" json:"provider"`
+	ProviderID  pgtype.Text        `db:"provider_id" json:"provider_id"`
+	Role        string             `db:"role" json:"role"`
+	CreatedAt   pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
