@@ -12,18 +12,26 @@ UPDATE auth.users SET last_sign_in_at = NOW() WHERE id = $1;
 
 -- Public Users
 -- name: CreatePublicUser :one
-INSERT INTO public.users (id, email, full_name, phone_number, role)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING *;
+INSERT INTO public.users (id, full_name, phone_number, role)
+VALUES ($1, $2, $3, $4)
+RETURNING id, full_name, phone_number, provider, provider_id, role, created_at, updated_at;
 
 -- name: GetPublicUserByEmail :one
-SELECT * FROM public.users WHERE email = $1;
+SELECT
+  pu.id, pu.full_name, pu.phone_number, pu.provider, pu.provider_id, pu.role,
+  pu.created_at, pu.updated_at
+FROM public.users pu
+JOIN auth.users au ON pu.id = au.id
+WHERE au.email = $1
+LIMIT 1;
 
 -- name: UpdatePublicUser :one
 UPDATE public.users
-SET full_name = $2, phone_number = $3, updated_at = NOW()
+SET full_name    = $2,
+    phone_number = $3,
+    updated_at   = NOW()
 WHERE id = $1
-RETURNING *;
+RETURNING id, full_name, phone_number, provider, provider_id, role, created_at, updated_at;
 
 -- name: DeleteAuthUser :exec
 DELETE FROM auth.users WHERE id = $1;

@@ -2,18 +2,22 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/AndikaPrasetia/wash-shoe/internal/db/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type AuthUserRepo interface {
 	Register(ctx context.Context, arg user.CreateAuthUserParams) (model.AuthUser, error)
-	Login(ctx context.Context, email, password string) (model.AuthUser, error)
+	Login(ctx context.Context, email, password string) (*model.AuthUser, error)
 	Logout(ctx context.Context, userID pgtype.UUID) error
 	Delete(ctx context.Context, id pgtype.UUID) error
 	CreateRefreshToken(ctx context.Context, arg user.CreateRefreshTokenParams) (model.RefreshToken, error)
+	GetAuthUserByEmail(ctx context.Context, email string) (*model.AuthUser, error)
 	RevokeRefreshToken(ctx context.Context, id pgtype.UUID) error
 	RevokeAllTokens(ctx context.Context, userID pgtype.UUID) error
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (*model.RefreshToken, error)
@@ -43,13 +47,17 @@ func (r *authUserRepo) Register(ctx context.Context, arg user.CreateAuthUserPara
 	}, nil
 }
 
-func (r *authUserRepo) Login(ctx context.Context, email, password string) (model.AuthUser, error) {
+func (r *authUserRepo) Login(ctx context.Context, email, password string) (*model.AuthUser, error) {
 	auth, err := r.q.GetAuthUserByEmail(ctx, email)
 	if err != nil {
-		return model.AuthUser{}, err
+		// Tangani khusus error tidak ditemukan
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
 	}
 	// You may want to verify password here before returning
-	return model.AuthUser{
+	return &model.AuthUser{
 		ID:           auth.ID.String(),
 		Email:        auth.Email,
 		PasswordHash: auth.PasswordHash.String,
@@ -62,6 +70,26 @@ func (r *authUserRepo) Logout(ctx context.Context, userID pgtype.UUID) error {
 
 func (r *authUserRepo) Delete(ctx context.Context, id pgtype.UUID) error {
 	return r.q.DeleteAuthUser(ctx, id)
+}
+
+func (r *authUserRepo) GetAuthUserByEmail(ctx context.Context, email string) (*model.AuthUser, error) {
+	u, err := r.q.GetAuthUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, sqlErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return &model.AuthUser{
+		ID:           u.ID.String(),
+		Email:        u.Email,
+		PasswordHash: u.PasswordHash.String,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		ConfirmedAt:  time.Now(),
+		LastSignInAt: time.Now(),
+	}, nil
 }
 
 func (r *authUserRepo) CreateRefreshToken(ctx context.Context, arg user.CreateRefreshTokenParams) (model.RefreshToken, error) {
@@ -109,7 +137,7 @@ func (r *authUserRepo) CreateAuditLog(ctx context.Context, arg user.CreateAuditL
 		ID:        al.ID,
 		ActorID:   al.ActorID.String(),
 		Action:    al.Action,
-		Details:   string( al.Details ),
+		Details:   string(al.Details),
 		CreatedAt: al.CreatedAt.Time,
 	}, nil
 }
@@ -125,7 +153,7 @@ func (r *authUserRepo) ListAuditLogs(ctx context.Context, actorID pgtype.UUID) (
 			ID:        al.ID,
 			ActorID:   al.ActorID.String(),
 			Action:    al.Action,
-			Details:   string( al.Details ),
+			Details:   string(al.Details),
 			CreatedAt: al.CreatedAt.Time,
 		}
 	}

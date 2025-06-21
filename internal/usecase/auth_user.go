@@ -26,6 +26,7 @@ var (
 // AuthUserUsecase defines business logic for auth users
 type AuthUserUsecase interface {
 	Register(ctx context.Context, req dto.SignupRequest) (model.AuthUser, string, string, error)
+	GetByEmail(ctx context.Context, email string) (*model.AuthUser, error)
 }
 
 type authUserUsecase struct {
@@ -46,10 +47,18 @@ func (uc *authUserUsecase) Register(ctx context.Context, req dto.SignupRequest) 
 		return model.AuthUser{}, "", "", ErrPasswordMismatch
 	}
 	// 2. Check if email already exists
-	existing, err := uc.userRepo.FindByEmail(ctx, req.Email)
-	if err != nil && !errors.Is(err, ErrUserNotFound) {
-		return model.AuthUser{}, "", "", fmt.Errorf("error checking existing user: %w", err)
+
+	existing, err := uc.authRepo.GetAuthUserByEmail(ctx, req.Email)
+	if err != nil {
+		// Gunakan error dari repository langsung
+		if !errors.Is(err, repository.ErrUserNotFound) {
+			return model.AuthUser{}, "", "", fmt.Errorf("error checking existing user: %w", err)
+		}
+		// User tidak ditemukan = boleh lanjut register
+	} else if existing != nil {
+		return model.AuthUser{}, "", "", ErrEmailAlreadyExists
 	}
+	// jika existing != nil berarti user sudah ada
 	if existing != nil {
 		return model.AuthUser{}, "", "", ErrEmailAlreadyExists
 	}
@@ -69,8 +78,7 @@ func (uc *authUserUsecase) Register(ctx context.Context, req dto.SignupRequest) 
 	}
 	// 5. Create public user profile
 	_, err = uc.userRepo.Create(ctx, user.CreatePublicUserParams{
-		FullName:    pgtype.Text{String: req.Username, Valid: true},
-		Email:       authUser.Email,
+		FullName:    req.Username,
 		PhoneNumber: pgtype.Text{String: "", Valid: false},
 		Role:        "user",
 	})
@@ -100,6 +108,10 @@ func (uc *authUserUsecase) Register(ctx context.Context, req dto.SignupRequest) 
 	})
 	// 9. Return result
 	return authUser, accessToken, refreshToken, nil
+}
+
+func (uc *authUserUsecase) GetByEmail(ctx context.Context, email string) (*model.AuthUser, error) {
+	return uc.authRepo.GetAuthUserByEmail(ctx, email)
 }
 
 // uuidFromString parses a UUID string into uuid.UUID (16-byte array)

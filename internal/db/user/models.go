@@ -37,8 +37,7 @@ type AuthUser struct {
 
 type User struct {
 	ID          pgtype.UUID        `db:"id" json:"id"`
-	FullName    pgtype.Text        `db:"full_name" json:"full_name"`
-	Email       string             `db:"email" json:"email"`
+	FullName    string             `db:"full_name" json:"full_name"`
 	PhoneNumber pgtype.Text        `db:"phone_number" json:"phone_number"`
 	Provider    pgtype.Text        `db:"provider" json:"provider"`
 	ProviderID  pgtype.Text        `db:"provider_id" json:"provider_id"`

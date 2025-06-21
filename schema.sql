@@ -36,8 +36,7 @@ CREATE TYPE photo_type AS ENUM ('before', 'after');
 -------------------------------
 CREATE TABLE public.users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  full_name TEXT,
-  email TEXT UNIQUE NOT NULL,
+  full_name TEXT NOT NULL,
   phone_number TEXT,
   provider TEXT DEFAULT 'email',
   provider_id TEXT,
@@ -388,6 +387,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- fungsi untuk insert public dan auth secara atomic
+CREATE OR REPLACE FUNCTION auth.sign_up_user(
+  p_email TEXT,
+  p_password TEXT,
+  p_full_name TEXT,
+  p_phone TEXT,
+  p_role TEXT DEFAULT 'user'
+) RETURNS UUID AS $$
+DECLARE
+  new_id UUID;
+BEGIN
+  INSERT INTO auth.users (email, password_hash)
+  VALUES (p_email, p_password)
+  RETURNING id INTO new_id;
+
+  INSERT INTO public.users (id, full_name, phone_number, role)
+  VALUES (new_id, p_full_name, p_phone, p_role);
+
+  RETURN new_id;
+END;
+$$ LANGUAGE plpgsql;
+
 -------------------------------
 -- 8. Security & Realtime
 -------------------------------
@@ -397,3 +418,13 @@ FOR ALL USING (auth.uid() = user_id);
 
 ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.order_status_history;
+
+-------------------------------
+-- Update Tables
+-------------------------------
+
+-- ALTER TABLE public.users
+--   ADD COLUMN provider    TEXT    DEFAULT 'email',
+--   ADD COLUMN provider_id TEXT,
+--   ADD COLUMN role        TEXT    NOT NULL DEFAULT 'user' 
+--     CHECK (role IN ('user','admin'));

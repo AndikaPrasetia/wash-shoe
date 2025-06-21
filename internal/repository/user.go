@@ -2,10 +2,17 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/AndikaPrasetia/wash-shoe/internal/db/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+)
+
+var (
+	sqlErrNoRows    = pgx.ErrNoRows
+	ErrUserNotFound = errors.New("user not found")
 )
 
 type UserRepo interface {
@@ -31,8 +38,7 @@ func (r *userRepo) Create(ctx context.Context, arg user.CreatePublicUserParams) 
 	}
 	return model.User{
 		ID:          pu.ID.String(),
-		FullName:    pu.FullName.String,
-		Email:       pu.Email,
+		FullName:    pu.FullName,
 		PhoneNumber: pu.PhoneNumber.String,
 		Role:        pu.Role,
 		CreatedAt:   pu.CreatedAt.Time,
@@ -47,8 +53,7 @@ func (r *userRepo) FindByID(ctx context.Context, id pgtype.UUID) (*model.User, e
 	}
 	return &model.User{
 		ID:          u.ID.String(),
-		FullName:    u.FullName.String,
-		Email:       u.Email,
+		FullName:    u.FullName,
 		PhoneNumber: u.PhoneNumber.String,
 		Role:        u.Role,
 		CreatedAt:   u.CreatedAt.Time,
@@ -59,12 +64,15 @@ func (r *userRepo) FindByID(ctx context.Context, id pgtype.UUID) (*model.User, e
 func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	u, err := r.q.GetPublicUserByEmail(ctx, email)
 	if err != nil {
+		if errors.Is(err, sqlErrNoRows) {
+			return nil, ErrUserNotFound
+		}
 		return nil, err
 	}
+
 	return &model.User{
 		ID:          u.ID.String(),
-		FullName:    u.FullName.String,
-		Email:       u.Email,
+		FullName:    u.FullName,
 		PhoneNumber: u.PhoneNumber.String,
 		Role:        u.Role,
 		CreatedAt:   u.CreatedAt.Time,
@@ -79,8 +87,7 @@ func (r *userRepo) Update(ctx context.Context, arg user.UpdatePublicUserParams) 
 	}
 	return model.User{
 		ID:          u.ID.String(),
-		FullName:    u.FullName.String,
-		Email:       u.Email,
+		FullName:    u.FullName,
 		PhoneNumber: u.PhoneNumber.String,
 		Role:        u.Role,
 		CreatedAt:   u.CreatedAt.Time,

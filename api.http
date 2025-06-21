@@ -8,7 +8,7 @@ Content-Type: application/json
 
 {
     "username": "john8",
-    "email": "john28@mail.com",
+    "email": "john2@mail.com",
     "password": "pswd1234",
     "confirm_password": "pswd1234"
 }

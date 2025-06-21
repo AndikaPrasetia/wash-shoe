@@ -65,15 +65,14 @@ func (q *Queries) CreateAuthUser(ctx context.Context, arg CreateAuthUserParams) 
 }
 
 const createPublicUser = `-- name: CreatePublicUser :one
-INSERT INTO public.users (id, email, full_name, phone_number, role)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, full_name, email, phone_number, provider, provider_id, role, created_at, updated_at
+INSERT INTO public.users (id, full_name, phone_number, role)
+VALUES ($1, $2, $3, $4)
+RETURNING id, full_name, phone_number, provider, provider_id, role, created_at, updated_at
 `
 
 type CreatePublicUserParams struct {
 	ID          pgtype.UUID `db:"id" json:"id"`
-	Email       string      `db:"email" json:"email"`
-	FullName    pgtype.Text `db:"full_name" json:"full_name"`
+	FullName    string      `db:"full_name" json:"full_name"`
 	PhoneNumber pgtype.Text `db:"phone_number" json:"phone_number"`
 	Role        string      `db:"role" json:"role"`
 }
@@ -82,7 +81,6 @@ type CreatePublicUserParams struct {
 func (q *Queries) CreatePublicUser(ctx context.Context, arg CreatePublicUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, createPublicUser,
 		arg.ID,
-		arg.Email,
 		arg.FullName,
 		arg.PhoneNumber,
 		arg.Role,
@@ -91,7 +89,6 @@ func (q *Queries) CreatePublicUser(ctx context.Context, arg CreatePublicUserPara
 	err := row.Scan(
 		&i.ID,
 		&i.FullName,
-		&i.Email,
 		&i.PhoneNumber,
 		&i.Provider,
 		&i.ProviderID,
@@ -169,7 +166,13 @@ func (q *Queries) GetAuthUserByEmail(ctx context.Context, email string) (AuthUse
 }
 
 const getPublicUserByEmail = `-- name: GetPublicUserByEmail :one
-SELECT id, full_name, email, phone_number, provider, provider_id, role, created_at, updated_at FROM public.users WHERE email = $1
+SELECT
+  pu.id, pu.full_name, pu.phone_number, pu.provider, pu.provider_id, pu.role,
+  pu.created_at, pu.updated_at
+FROM public.users pu
+JOIN auth.users au ON pu.id = au.id
+WHERE au.email = $1
+LIMIT 1
 `
 
 func (q *Queries) GetPublicUserByEmail(ctx context.Context, email string) (User, error) {
@@ -178,7 +181,6 @@ func (q *Queries) GetPublicUserByEmail(ctx context.Context, email string) (User,
 	err := row.Scan(
 		&i.ID,
 		&i.FullName,
-		&i.Email,
 		&i.PhoneNumber,
 		&i.Provider,
 		&i.ProviderID,
@@ -210,7 +212,7 @@ func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, full_name, email, phone_number, provider, provider_id, role, created_at, updated_at FROM public.users WHERE id = $1 LIMIT 1
+SELECT id, full_name, phone_number, provider, provider_id, role, created_at, updated_at FROM public.users WHERE id = $1 LIMIT 1
 `
 
 // Get User by ID
@@ -220,7 +222,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	err := row.Scan(
 		&i.ID,
 		&i.FullName,
-		&i.Email,
 		&i.PhoneNumber,
 		&i.Provider,
 		&i.ProviderID,
@@ -293,14 +294,16 @@ func (q *Queries) UpdateAuthUserLastLogin(ctx context.Context, id pgtype.UUID) e
 
 const updatePublicUser = `-- name: UpdatePublicUser :one
 UPDATE public.users
-SET full_name = $2, phone_number = $3, updated_at = NOW()
+SET full_name    = $2,
+    phone_number = $3,
+    updated_at   = NOW()
 WHERE id = $1
-RETURNING id, full_name, email, phone_number, provider, provider_id, role, created_at, updated_at
+RETURNING id, full_name, phone_number, provider, provider_id, role, created_at, updated_at
 `
 
 type UpdatePublicUserParams struct {
 	ID          pgtype.UUID `db:"id" json:"id"`
-	FullName    pgtype.Text `db:"full_name" json:"full_name"`
+	FullName    string      `db:"full_name" json:"full_name"`
 	PhoneNumber pgtype.Text `db:"phone_number" json:"phone_number"`
 }
 
@@ -310,7 +313,6 @@ func (q *Queries) UpdatePublicUser(ctx context.Context, arg UpdatePublicUserPara
 	err := row.Scan(
 		&i.ID,
 		&i.FullName,
-		&i.Email,
 		&i.PhoneNumber,
 		&i.Provider,
 		&i.ProviderID,
