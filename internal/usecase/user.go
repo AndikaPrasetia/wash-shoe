@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"github.com/AndikaPrasetia/wash-shoe/internal/db/user"
+	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
 	"github.com/AndikaPrasetia/wash-shoe/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"

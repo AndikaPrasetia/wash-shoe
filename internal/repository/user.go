@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/AndikaPrasetia/wash-shoe/internal/db/user"
+	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AndikaPrasetia/wash-shoe/internal/db/user"
+	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/dto"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
 	"github.com/AndikaPrasetia/wash-shoe/internal/repository"
@@ -47,7 +47,6 @@ func (uc *authUserUsecase) Register(ctx context.Context, req dto.SignupRequest) 
 		return model.AuthUser{}, "", "", ErrPasswordMismatch
 	}
 	// 2. Check if email already exists
-
 	existing, err := uc.authRepo.GetAuthUserByEmail(ctx, req.Email)
 	if err != nil {
 		// Gunakan error dari repository langsung

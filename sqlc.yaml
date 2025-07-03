@@ -3,11 +3,11 @@ sql:
   - name: "user"
     engine: "postgresql"
     schema: "schema.sql"
-    queries: "internal/db/queries/user.sql"
+    queries: "internal/sqlc/queries/user.sql"
     gen:
       go:
         package: "user"
-        out: "internal/db/user"
+        out: "internal/sqlc/user"
         sql_package: "pgx/v5"
         emit_json_tags: true
         emit_interface: true
@@ -19,11 +19,11 @@ sql:
   # - name: "order"
   #   engine: "postgresql"
   #   schema: "schema.sql"
-  #   queries: "internal/db/queries/order.sql"
+  #   queries: "internal/sqlc/queries/order.sql"
   #   gen:
   #     go:
   #       package: "order"
-  #       out: "internal/db/order"
+  #       out: "internal/sqlc/order"
   #       sql_package: "pgx/v5"
   #       emit_json_tags: true
   #       emit_interface: true

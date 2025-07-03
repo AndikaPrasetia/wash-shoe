@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/AndikaPrasetia/wash-shoe/internal/config"
-	"github.com/AndikaPrasetia/wash-shoe/internal/db/user"
+	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/delivery/controller"
 	"github.com/AndikaPrasetia/wash-shoe/internal/middleware"
 	"github.com/AndikaPrasetia/wash-shoe/internal/repository"
