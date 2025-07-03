@@ -1,3 +1,4 @@
+// Package middleware: app's middleware
 package middleware
 
 import (

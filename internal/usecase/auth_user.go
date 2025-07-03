@@ -1,4 +1,4 @@
-// auth_user_usecase.go
+// Package usecase: business logics
 package usecase
 
 import (
@@ -78,6 +78,7 @@ func (uc *authUserUsecase) Register(ctx context.Context, req dto.SignupRequest) 
 	}
 	// 5. Create public user profile
 	_, err = uc.userRepo.Create(ctx, user.CreatePublicUserParams{
+		ID:          pgtype.UUID{Bytes: uuidFromString(authUser.ID), Valid: true},
 		FullName:    req.Username,
 		PhoneNumber: pgtype.Text{String: "", Valid: false},
 		Role:        "user",
@@ -115,7 +116,7 @@ func (uc *authUserUsecase) GetByEmail(ctx context.Context, email string) (*model
 }
 
 // uuidFromString parses a UUID string into uuid.UUID (16-byte array)
-func uuidFromString(s string) uuid.UUID {
-	u, _ := uuid.Parse(s)
+func uuidFromString(s string) [16]byte {
+	u := uuid.MustParse(s)
 	return u
 }

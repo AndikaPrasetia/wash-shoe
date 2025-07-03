@@ -1,3 +1,4 @@
+// Package model: entity of the app
 package model
 
 import "time"
