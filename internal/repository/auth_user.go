@@ -57,7 +57,6 @@ func (r *authUserRepo) Login(ctx context.Context, email, password string) (*mode
 		}
 		return nil, err
 	}
-	// You may want to verify password here before returning
 	return &model.AuthUser{
 		ID:           auth.ID.String(),
 		Email:        auth.Email,

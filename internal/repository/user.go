@@ -13,6 +13,7 @@ import (
 var (
 	sqlErrNoRows    = pgx.ErrNoRows
 	ErrUserNotFound = errors.New("user not found")
+	ErrInvalidCredentials = errors.New("invalid credentials")
 )
 
 type UserRepo interface {

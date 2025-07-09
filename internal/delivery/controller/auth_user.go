@@ -18,6 +18,7 @@ type authController struct {
 func (a *authController) Route() {
 	authGroup := a.rg.Group("/auth")
 	authGroup.POST("/signup", a.Register)
+	authGroup.POST("/login", a.Login)
 }
 
 func NewAuthController(authUC usecase.AuthUserUsecase, rg *gin.RouterGroup) *authController {
@@ -75,4 +76,29 @@ func (a *authController) Register(c *gin.Context) {
 		},
 	})
 
+}
+func (a *authController) Login(c *gin.Context) {
+	var req dto.LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	accessToken, refreshToken, err := a.authUC.Login(c.Request.Context(), req)
+	if err != nil {
+		if errors.Is(err, usecase.ErrUserNotFound) ||
+			errors.Is(err, usecase.ErrInvalidCredentials) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	response := dto.LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}
+
+	c.JSON(http.StatusOK, response)
 }

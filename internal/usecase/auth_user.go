@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/dto"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
 	"github.com/AndikaPrasetia/wash-shoe/internal/repository"
+	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	utils "github.com/AndikaPrasetia/wash-shoe/internal/utils/services"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -27,6 +27,7 @@ var (
 type AuthUserUsecase interface {
 	Register(ctx context.Context, req dto.SignupRequest) (model.AuthUser, string, string, error)
 	GetByEmail(ctx context.Context, email string) (*model.AuthUser, error)
+	Login(ctx context.Context, req dto.LoginRequest) (string, string, error)
 }
 
 type authUserUsecase struct {
@@ -118,4 +119,59 @@ func (uc *authUserUsecase) GetByEmail(ctx context.Context, email string) (*model
 func uuidFromString(s string) [16]byte {
 	u := uuid.MustParse(s)
 	return u
+}
+
+func (uc *authUserUsecase) Login(ctx context.Context, req dto.LoginRequest) (string, string, error) {
+	// get auth user
+	authUser, err := uc.authRepo.GetAuthUserByEmail(ctx, req.Email)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return "", "", ErrUserNotFound
+		}
+		return "", "", err
+	}
+
+	// validate password
+	if !utils.CheckPasswordHash(req.Password, authUser.PasswordHash) {
+		// Log failed attempt
+		uc.authRepo.CreateAuditLog(ctx, user.CreateAuditLogParams{
+			ActorID: pgtype.UUID{Bytes: uuidFromString(authUser.ID), Valid: true},
+			Action:  "login_failed",
+			Details: fmt.Appendf(nil, "failed login attempt for %s ", req.Email),
+		})
+
+		// Return error setelah log
+		return "", "", ErrInvalidCredentials
+	}
+
+	// get public user data for role
+	publicUser, err := uc.userRepo.FindByEmail(ctx, req.Email)
+	if err != nil {
+		return "", "", err
+	}
+
+	// generate tokens
+	accessToken, refreshToken, err := utils.GenerateTokenPair(publicUser.ID)
+	if err != nil {
+		return "", "", err
+	}
+
+	// save refresh token
+	rtHash := utils.HashToken(refreshToken)
+	_, err = uc.authRepo.CreateRefreshToken(ctx, user.CreateRefreshTokenParams{
+		UserID:    pgtype.UUID{Bytes: uuidFromString(authUser.ID), Valid: true},
+		TokenHash: rtHash,
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(30 * 24 * time.Hour), Valid: true},
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	// update last login
+	err = uc.authRepo.UpdateLastLogin(ctx, pgtype.UUID{Bytes: uuidFromString(authUser.ID), Valid: true})
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
 }
