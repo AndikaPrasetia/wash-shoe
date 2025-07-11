@@ -21,6 +21,7 @@ var (
 	ErrEmailAlreadyExists = errors.New("email already exist")
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrUserNotFound       = errors.New("user not found")
+	ErrTokenNotFound      = errors.New("token not found")
 )
 
 // AuthUserUsecase defines business logic for auth users
@@ -28,6 +29,7 @@ type AuthUserUsecase interface {
 	Register(ctx context.Context, req dto.SignupRequest) (model.AuthUser, string, string, error)
 	GetByEmail(ctx context.Context, email string) (*model.AuthUser, error)
 	Login(ctx context.Context, req dto.LoginRequest) (string, string, error)
+	Logout(ctx context.Context, refreshToken string) error
 }
 
 type authUserUsecase struct {
@@ -174,4 +176,50 @@ func (uc *authUserUsecase) Login(ctx context.Context, req dto.LoginRequest) (str
 	}
 
 	return accessToken, refreshToken, nil
+}
+
+func (uc *authUserUsecase) Logout(ctx context.Context, refreshToken string) error {
+	// Hash token for database searching
+	tokenHash := utils.HashToken(refreshToken)
+
+	// get refresh token from database
+	rt, err := uc.authRepo.GetRefreshTokenByHash(ctx, tokenHash)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return ErrTokenNotFound
+		}
+		return err
+	}
+
+	// revoke this spesific token
+	tokenID, err := uuid.Parse(rt.ID)
+	if err != nil {
+		return fmt.Errorf("invalid token ID: %w ", err)
+	}
+
+	err = uc.authRepo.RevokeRefreshToken(ctx, pgtype.UUID{Bytes: tokenID, Valid: true})
+	if err != nil {
+		return fmt.Errorf("failed to revoke token: %w ", err)
+	}
+
+	// revoke all tokens
+	userID, err := uuid.Parse(rt.UserID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w ", err)
+	}
+
+	err = uc.authRepo.RevokeAllTokens(ctx, pgtype.UUID{Bytes: userID, Valid: true})
+	if err != nil {
+		return fmt.Errorf("failed to revoke all tokens: %w", err)
+	}
+
+	// create log autdit
+	_, err = uc.authRepo.CreateAuditLog(ctx, user.CreateAuditLogParams{
+		ActorID: pgtype.UUID{Bytes: userID, Valid: true},
+		Action:  "logout",
+		Details: []byte("user logged out and token revoked"),
+	})
+
+	return err
+
 }

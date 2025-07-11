@@ -19,6 +19,7 @@ func (a *authController) Route() {
 	authGroup := a.rg.Group("/auth")
 	authGroup.POST("/signup", a.Register)
 	authGroup.POST("/login", a.Login)
+	authGroup.POST("/logout", a.Logout)
 }
 
 func NewAuthController(authUC usecase.AuthUserUsecase, rg *gin.RouterGroup) *authController {
@@ -98,6 +99,31 @@ func (a *authController) Login(c *gin.Context) {
 	response := dto.LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func (a *authController) Logout(c *gin.Context) {
+	var req dto.LogoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	err := a.authUC.Logout(c.Request.Context(), req.RefreshToken)
+	if err != nil {
+		if errors.Is(err, usecase.ErrTokenNotFound) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	response := dto.LogoutResponse{
+		Message: "Successfully logged out",
 	}
 
 	c.JSON(http.StatusOK, response)
