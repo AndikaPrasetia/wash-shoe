@@ -22,14 +22,47 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -------------------------------
 -- 2. Enums
 -------------------------------
-CREATE TYPE order_status AS ENUM (
-  'pending', 'processing', 'cleaning', 'ready_for_delivery', 'completed', 'delivered', 'cancelled'
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status') THEN
+    CREATE TYPE order_status AS ENUM (
+      'pending', 'processing', 'cleaning', 'ready_for_delivery', 'completed', 'delivered', 'cancelled'
+    );
+  END IF;
+END
+$$;
 
-CREATE TYPE payment_status AS ENUM ('pending', 'success', 'failed', 'refunded');
-CREATE TYPE payment_method AS ENUM ('DANA', 'OVO', 'COD', 'Bank_Transfer', 'QRIS');
-CREATE TYPE notification_channel AS ENUM ('email', 'whatsapp', 'in_app');
-CREATE TYPE photo_type AS ENUM ('before', 'after');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status') THEN
+    CREATE TYPE payment_status AS ENUM ('pending', 'success', 'failed', 'refunded');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_method') THEN
+    CREATE TYPE payment_method AS ENUM ('DANA', 'OVO', 'COD', 'Bank_Transfer', 'QRIS');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notification_channel') THEN
+    CREATE TYPE notification_channel AS ENUM ('email', 'whatsapp', 'in_app');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'photo_type') THEN
+    CREATE TYPE photo_type AS ENUM ('before', 'after');
+  END IF;
+END
+$$;
 
 -------------------------------
 -- 3. Application Tables
