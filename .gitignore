@@ -1,3 +1,4 @@
 .env
 markdowns/
 schema1.sql
+.cursor

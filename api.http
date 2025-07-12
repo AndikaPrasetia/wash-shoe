@@ -4,8 +4,8 @@ POST http://localhost:8080/api/v1/auth/signup HTTP/1.1
 Content-Type: application/json
 
 {
-    "username": "alice1",
-    "email": "alice1@mail.com",
+    "username": "alice2",
+    "email": "alice2@mail.com",
     "password": "pswd1234",
     "confirm_password": "pswd1234"
 }
@@ -16,7 +16,7 @@ POST http://localhost:8080/api/v1/auth/login HTTP/1.1
 Content-Type: application/json
 
 {
-    "email": "alice1@mail.com",
+    "email": "alice2@mail.com",
     "password": "pswd1234"
 }
 
@@ -26,6 +26,6 @@ POST http://localhost:8080/api/v1/auth/logout HTTP/1.1
 Content-Type: application/json
 
 {
-    "refresh_token": "357cf5c0db9d8d4cbc2e5e4b998436324e5102ba4b9750f0a35faad969a248f6"
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTI5NDA5MTAsInN1YiI6IjQ4ZGZjNWNkLTc3NzYtNDI0Yi04NGQ2LTllZGEwOWQzNTdhYyIsInR5cGUiOiJyZWZyZXNoIn0.2nRExyaMLJXg72x49isCJy-BJcCqYOcSht4cSqhZwfY"
 }
 

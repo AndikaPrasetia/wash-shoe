@@ -6,11 +6,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
+	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+var ErrTokenNotFound = errors.New("token not found")
 
 type AuthUserRepo interface {
 	Register(ctx context.Context, arg user.CreateAuthUserParams) (model.AuthUser, error)
@@ -117,6 +119,9 @@ func (r *authUserRepo) RevokeAllTokens(ctx context.Context, userID pgtype.UUID) 
 func (r *authUserRepo) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (*model.RefreshToken, error) {
 	rt, err := r.q.GetRefreshTokenByHash(ctx, tokenHash)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrTokenNotFound
+		}
 		return nil, err
 	}
 	return &model.RefreshToken{

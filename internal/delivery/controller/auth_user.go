@@ -112,6 +112,7 @@ func (a *authController) Logout(c *gin.Context) {
 		})
 		return
 	}
+
 	err := a.authUC.Logout(c.Request.Context(), req.RefreshToken)
 	if err != nil {
 		if errors.Is(err, usecase.ErrTokenNotFound) {
