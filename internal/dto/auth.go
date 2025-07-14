@@ -35,10 +35,6 @@ type LoginResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-type LogoutRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
-}
-
 type LogoutResponse struct {
 	Message string `json:"message"`
 }

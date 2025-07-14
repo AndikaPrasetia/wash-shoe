@@ -72,13 +72,23 @@ func NewServer() *Server {
 }
 
 func (s *Server) initRoute() {
+	// Buat controller
+	authController := controller.NewAuthController(s.authUC)
+	
+	// Grup publik (tanpa middleware)
 	publicGroup := s.engine.Group("/api/v1")
+	{
+		publicGroup.POST("/auth/register", authController.Register)
+		publicGroup.POST("/auth/login", authController.Login)
+	}
 
-	controller.NewAuthController(s.authUC, publicGroup).Route()
-
-	protectedGroup := s.engine.Group("/api/v1")
+	// Grup proteksi (dengan middleware)
 	authMiddleware := middleware.NewAuthMiddleware(s.jwtSvc)
-	protectedGroup.Use(authMiddleware.Middleware())
+	protectedGroup := s.engine.Group("/api/v1")
+	protectedGroup.Use(authMiddleware.Middleware()) // <<< MIDDLEWARE DITERAPKAN DI SINI
+	{
+		protectedGroup.POST("/auth/logout", authController.Logout) // <<< ENDPOINT LOGOUT DIPINDAH KE SINI
+	}
 }
 
 func (s *Server) Run() {

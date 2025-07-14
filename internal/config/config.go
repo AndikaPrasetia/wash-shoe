@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -28,7 +29,7 @@ type APIConfig struct {
 
 type TokenConfig struct {
 	AppName              string
-	JwtSignaturKey       []byte
+	JwtSecretKey         []byte
 	JwtSigningMethod     *jwt.SigningMethodHMAC
 	AccessTokenLifeTime  time.Duration
 	RefreshTokenLifeTime time.Duration
@@ -68,15 +69,15 @@ func (c *Config) readConfig() error {
 		IsSecure: isSecure,
 	}
 
-	accessTokenLifeTime := time.Duration(1) * time.Hour
-	refreshTokenLifeTime := time.Duration(24*7) * time.Hour
+	accessExp, _ := strconv.Atoi(os.Getenv("ACCESS_TOKEN_EXP"))
+	refreshExp, _ := strconv.Atoi(os.Getenv("REFRESH_TOKEN_EXP"))
 
 	c.TokenConfig = TokenConfig{
 		AppName:              os.Getenv("APP_NAME"),
-		JwtSignaturKey:       []byte(os.Getenv("TOKEN_KEY")),
+		JwtSecretKey:         []byte(os.Getenv("JWT_SECRET")),
 		JwtSigningMethod:     jwt.SigningMethodHS256,
-		AccessTokenLifeTime:  accessTokenLifeTime,
-		RefreshTokenLifeTime: refreshTokenLifeTime,
+		AccessTokenLifeTime:  time.Duration(accessExp),
+		RefreshTokenLifeTime: time.Duration(refreshExp),
 	}
 
 	if c.Host == "" ||

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/AndikaPrasetia/wash-shoe/internal/dto"
+	"github.com/AndikaPrasetia/wash-shoe/internal/model"
 	"github.com/AndikaPrasetia/wash-shoe/internal/usecase"
 	"github.com/gin-gonic/gin"
 )
@@ -22,10 +23,9 @@ func (a *authController) Route() {
 	authGroup.POST("/logout", a.Logout)
 }
 
-func NewAuthController(authUC usecase.AuthUserUsecase, rg *gin.RouterGroup) *authController {
+func NewAuthController(authUC usecase.AuthUserUsecase) *authController {
 	return &authController{
 		authUC: authUC,
-		rg:     rg,
 	}
 }
 
@@ -105,20 +105,22 @@ func (a *authController) Login(c *gin.Context) {
 }
 
 func (a *authController) Logout(c *gin.Context) {
-	var req dto.LogoutRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+	// Dapatkan user dari context (diset oleh middleware)
+	user, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in context"})
 		return
 	}
 
-	err := a.authUC.Logout(c.Request.Context(), req.RefreshToken)
+	authUser, ok := user.(model.User)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user data"})
+		return
+	}
+
+	// Panggil usecase hanya dengan userID
+	err := a.authUC.Logout(c.Request.Context(), authUser.ID)
 	if err != nil {
-		if errors.Is(err, usecase.ErrTokenNotFound) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

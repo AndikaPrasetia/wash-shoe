@@ -1,3 +1,4 @@
+bin
 .env
 markdowns/
 schema1.sql

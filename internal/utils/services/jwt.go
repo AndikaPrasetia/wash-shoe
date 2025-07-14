@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,15 +26,17 @@ func NewJwtService(cfg config.TokenConfig) JwtService {
 }
 
 func (j *jwtService) CreateAccessToken(user model.User) (string, error) {
-	tokenKey := j.cfg.JwtSignaturKey
+	tokenKey := j.cfg.JwtSecretKey
 
 	claims := modelUtils.JwtPayloadClaim{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    j.cfg.AppName,
+			Subject:   user.ID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.cfg.AccessTokenLifeTime)),
 		},
 		UserID: user.ID,
 		Role:   user.Role,
+		Type:   "access",
 	}
 
 	jwtNewClaim := jwt.NewWithClaims(j.cfg.JwtSigningMethod, claims)
@@ -46,15 +49,17 @@ func (j *jwtService) CreateAccessToken(user model.User) (string, error) {
 }
 
 func (j *jwtService) CreateRefreshToken(user model.User) (string, error) {
-	tokenKey := j.cfg.JwtSignaturKey
+	tokenKey := j.cfg.JwtSecretKey
 
 	claims := modelUtils.JwtPayloadClaim{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    j.cfg.AppName,
+			Subject:   user.ID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.cfg.RefreshTokenLifeTime)),
 		},
 		UserID: user.ID,
 		Role:   user.Role,
+		Type:   "refresh",
 	}
 
 	jwtNewClaim := jwt.NewWithClaims(j.cfg.JwtSigningMethod, claims)
@@ -66,17 +71,34 @@ func (j *jwtService) CreateRefreshToken(user model.User) (string, error) {
 	return token, nil
 }
 func (j *jwtService) VerifyToken(tokenString string) (modelUtils.JwtPayloadClaim, error) {
-	tokenParse, err := jwt.ParseWithClaims(tokenString, &modelUtils.JwtPayloadClaim{}, func(token *jwt.Token) (any, error) {
-		return j.cfg.JwtSignaturKey, nil
-	})
+	// 1. Parse token dengan claims
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&modelUtils.JwtPayloadClaim{},
+		func(token *jwt.Token) (any, error) {
+			// 2. Validasi metode signing
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return j.cfg.JwtSecretKey, nil
+		},
+	)
+
+	// 3. Tangani error parsing
 	if err != nil {
-		return modelUtils.JwtPayloadClaim{}, err
+		return modelUtils.JwtPayloadClaim{}, fmt.Errorf("token parsing failed: %w", err)
 	}
 
-	claim, ok := tokenParse.Claims.(*modelUtils.JwtPayloadClaim)
+	// 4. Validasi token
+	if !token.Valid {
+		return modelUtils.JwtPayloadClaim{}, errors.New("invalid token")
+	}
+
+	// 5. Ekstrak claims
+	claims, ok := token.Claims.(*modelUtils.JwtPayloadClaim)
 	if !ok {
-		return modelUtils.JwtPayloadClaim{}, fmt.Errorf("error claim")
+		return modelUtils.JwtPayloadClaim{}, errors.New("invalid token claims")
 	}
 
-	return *claim, nil
+	return *claims, nil
 }

@@ -3,36 +3,39 @@ package utils
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 // GenerateTokenPair creates a signed JWT access token and refresh token for the given user ID.
-// It reads secret keys and expiration durations from environment variables:
-// ACCESS_SECRET, REFRESH_SECRET, ACCESS_EXP (in minutes), REFRESH_EXP (in hours).
+// It reads secret key and expiration durations from environment variables:
+// JWT_SECRET, ACCESS_TOKEN_EXP (minutes), REFRESH_TOKEN_EXP (minutes)
 func GenerateTokenPair(userID string) (accessToken string, refreshToken string, err error) {
-	// Load secrets
-	accessSecret := os.Getenv("ACCESS_SECRET")
-	refreshSecret := os.Getenv("REFRESH_SECRET")
-	if accessSecret == "" || refreshSecret == "" {
-		err = fmt.Errorf("missing token secrets in environment")
+	// Load secret
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		err = errors.New("JWT_SECRET not set in environment")
 		return
 	}
 
-	// Parse durations
-	accessExpMin := 15
-	refreshExpHour := 24
-	if v := os.Getenv("ACCESS_EXP"); v != "" {
-		if d, parseErr := time.ParseDuration(v + "m"); parseErr == nil {
-			accessExpMin = int(d.Minutes())
+	// Parse durations with default values
+	accessExpMin := 15     // default 15 minutes
+	refreshExpMin := 10080 // default 7 days (10080 minutes)
+
+	if v := os.Getenv("ACCESS_TOKEN_EXP"); v != "" {
+		if exp, parseErr := strconv.Atoi(v); parseErr == nil {
+			accessExpMin = exp
 		}
 	}
-	if v := os.Getenv("REFRESH_EXP"); v != "" {
-		if d, parseErr := time.ParseDuration(v + "h"); parseErr == nil {
-			refreshExpHour = int(d.Hours())
+
+	if v := os.Getenv("REFRESH_TOKEN_EXP"); v != "" {
+		if exp, parseErr := strconv.Atoi(v); parseErr == nil {
+			refreshExpMin = exp
 		}
 	}
 
@@ -43,7 +46,7 @@ func GenerateTokenPair(userID string) (accessToken string, refreshToken string, 
 		"type": "access",
 	}
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	accessToken, err = at.SignedString([]byte(accessSecret))
+	accessToken, err = at.SignedString([]byte(secret))
 	if err != nil {
 		err = fmt.Errorf("sign access token: %w", err)
 		return
@@ -52,11 +55,11 @@ func GenerateTokenPair(userID string) (accessToken string, refreshToken string, 
 	// Create refresh token
 	refreshClaims := jwt.MapClaims{
 		"sub":  userID,
-		"exp":  time.Now().Add(time.Duration(refreshExpHour) * time.Hour).Unix(),
+		"exp":  time.Now().Add(time.Duration(refreshExpMin) * time.Minute).Unix(),
 		"type": "refresh",
 	}
 	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-	refreshToken, err = rt.SignedString([]byte(refreshSecret))
+	refreshToken, err = rt.SignedString([]byte(secret))
 	if err != nil {
 		err = fmt.Errorf("sign refresh token: %w", err)
 		return

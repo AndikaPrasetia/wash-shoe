@@ -29,7 +29,7 @@ type AuthUserUsecase interface {
 	Register(ctx context.Context, req dto.SignupRequest) (model.AuthUser, string, string, error)
 	GetByEmail(ctx context.Context, email string) (*model.AuthUser, error)
 	Login(ctx context.Context, req dto.LoginRequest) (string, string, error)
-	Logout(ctx context.Context, refreshToken string) error
+	Logout(ctx context.Context, userID string) error
 }
 
 type authUserUsecase struct {
@@ -178,44 +178,32 @@ func (uc *authUserUsecase) Login(ctx context.Context, req dto.LoginRequest) (str
 	return accessToken, refreshToken, nil
 }
 
-func (uc *authUserUsecase) Logout(ctx context.Context, refreshToken string) error {
-    // 1. Hash token asli untuk dicocokkan dengan database
-    tokenHash := utils.HashToken(refreshToken)  // Ini menghasilkan SHA256 dari token
-    
-    // 2. Cari token di database berdasarkan hash
-    rt, err := uc.authRepo.GetRefreshTokenByHash(ctx, tokenHash)
-    if err != nil {
-        if errors.Is(err, repository.ErrTokenNotFound) {
-            return ErrTokenNotFound
-        }
-        return err
-    }
-    
-    // 3. Revoke token
-    tokenID, err := uuid.Parse(rt.ID)
-    if err != nil {
-        return fmt.Errorf("invalid token ID: %w", err)
-    }
-    
-    err = uc.authRepo.RevokeRefreshToken(ctx, pgtype.UUID{Bytes: tokenID, Valid: true})
-    if err != nil {
-        return err
-    }
-    
-    // 4. [Opsional] Revoke semua token user
-    userID, err := uuid.Parse(rt.UserID)
-    if err != nil {
-        return fmt.Errorf("invalid user ID: %w", err)
-    }
-    
-    err = uc.authRepo.RevokeAllTokens(ctx, pgtype.UUID{Bytes: userID, Valid: true})
-    
-    // 5. Audit log
-    uc.authRepo.CreateAuditLog(ctx, user.CreateAuditLogParams{
-        ActorID: pgtype.UUID{Bytes: userID, Valid: true},
-        Action:  "logout",
-		Details: []byte("user logged out and token revoked"),
-    })
-    
-    return err
+func (uc *authUserUsecase) Logout(ctx context.Context, userID string) error {
+	// 1. Parse user ID
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+	pgUUID := pgtype.UUID{Bytes: userUUID, Valid: true}
+
+	// 2. Revoke semua refresh token user
+	err = uc.authRepo.RevokeAllTokens(ctx, pgUUID)
+	if err != nil {
+		return fmt.Errorf("failed to revoke tokens: %w", err)
+	}
+
+	// 3. [OPTIONAL] Tambahkan access token ke cache revoked
+	// (Jika Anda mengimplementasikan cache token yang di-revoke)
+	// uc.tokenCache.Add(accessToken, uc.cfg.AccessTokenLifeTime)
+
+	// 4. Audit log (PERBAIKAN DI SINI)
+	detailsJSON := []byte(`"user logged out and tokens revoked"`) // String JSON valid
+
+	_, err = uc.authRepo.CreateAuditLog(ctx, user.CreateAuditLogParams{
+		ActorID: pgUUID,
+		Action:  "logout",
+		Details: detailsJSON,
+	})
+
+	return err
 }
