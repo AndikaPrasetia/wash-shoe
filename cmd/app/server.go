@@ -78,7 +78,7 @@ func (s *Server) initRoute() {
 	// Grup publik (tanpa middleware)
 	publicGroup := s.engine.Group("/api/v1")
 	{
-		publicGroup.POST("/auth/register", authController.Register)
+		publicGroup.POST("/auth/signup", authController.Signup)
 		publicGroup.POST("/auth/login", authController.Login)
 	}
 

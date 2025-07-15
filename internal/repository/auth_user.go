@@ -15,7 +15,7 @@ import (
 var ErrTokenNotFound = errors.New("token not found")
 
 type AuthUserRepo interface {
-	Register(ctx context.Context, arg user.CreateAuthUserParams) (model.AuthUser, error)
+	Signup(ctx context.Context, arg user.CreateAuthUserParams) (model.AuthUser, error)
 	Login(ctx context.Context, email, password string) (*model.AuthUser, error)
 	Logout(ctx context.Context, userID pgtype.UUID) error
 	Delete(ctx context.Context, id pgtype.UUID) error
@@ -37,7 +37,7 @@ func NewAuthUserRepo(q user.Querier) AuthUserRepo {
 	return &authUserRepo{q: q}
 }
 
-func (r *authUserRepo) Register(ctx context.Context, arg user.CreateAuthUserParams) (model.AuthUser, error) {
+func (r *authUserRepo) Signup(ctx context.Context, arg user.CreateAuthUserParams) (model.AuthUser, error) {
 	au, err := r.q.CreateAuthUser(ctx, arg)
 	if err != nil {
 		return model.AuthUser{}, err

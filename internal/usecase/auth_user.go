@@ -26,7 +26,7 @@ var (
 
 // AuthUserUsecase defines business logic for auth users
 type AuthUserUsecase interface {
-	Register(ctx context.Context, req dto.SignupRequest) (model.AuthUser, string, string, error)
+	Signup(ctx context.Context, req dto.SignupRequest) (model.AuthUser, string, string, error)
 	GetByEmail(ctx context.Context, email string) (*model.AuthUser, error)
 	Login(ctx context.Context, req dto.LoginRequest) (string, string, error)
 	Logout(ctx context.Context, userID string) error
@@ -42,9 +42,9 @@ func NewAuthUserUsecase(authRepo repository.AuthUserRepo, userRepo repository.Us
 	return &authUserUsecase{authRepo: authRepo, userRepo: userRepo}
 }
 
-// Register handles user signup: validates input, creates auth+public user,
+// Signup handles user signup: validates input, creates auth+public user,
 // issues tokens, stores refresh token, and logs the action.
-func (uc *authUserUsecase) Register(ctx context.Context, req dto.SignupRequest) (model.AuthUser, string, string, error) {
+func (uc *authUserUsecase) Signup(ctx context.Context, req dto.SignupRequest) (model.AuthUser, string, string, error) {
 	// 1. Validate passwords
 	if req.Password != req.ConfirmPassword {
 		return model.AuthUser{}, "", "", ErrPasswordMismatch
@@ -56,7 +56,7 @@ func (uc *authUserUsecase) Register(ctx context.Context, req dto.SignupRequest) 
 		if !errors.Is(err, repository.ErrUserNotFound) {
 			return model.AuthUser{}, "", "", fmt.Errorf("error checking existing user: %w", err)
 		}
-		// User tidak ditemukan = boleh lanjut register
+		// User tidak ditemukan = boleh lanjut Signup
 	} else if existing != nil {
 		return model.AuthUser{}, "", "", ErrEmailAlreadyExists
 	}
@@ -74,9 +74,9 @@ func (uc *authUserUsecase) Register(ctx context.Context, req dto.SignupRequest) 
 		Email:        req.Email,
 		PasswordHash: pgtype.Text{String: hash, Valid: true},
 	}
-	authUser, err := uc.authRepo.Register(ctx, authParams)
+	authUser, err := uc.authRepo.Signup(ctx, authParams)
 	if err != nil {
-		return model.AuthUser{}, "", "", fmt.Errorf("register auth user: %w", err)
+		return model.AuthUser{}, "", "", fmt.Errorf("signup auth user: %w", err)
 	}
 	// 5. Create public user profile
 	_, err = uc.userRepo.Create(ctx, user.CreatePublicUserParams{

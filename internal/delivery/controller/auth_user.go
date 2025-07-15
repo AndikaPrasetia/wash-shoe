@@ -16,20 +16,13 @@ type authController struct {
 	rg     *gin.RouterGroup
 }
 
-func (a *authController) Route() {
-	authGroup := a.rg.Group("/auth")
-	authGroup.POST("/signup", a.Register)
-	authGroup.POST("/login", a.Login)
-	authGroup.POST("/logout", a.Logout)
-}
-
 func NewAuthController(authUC usecase.AuthUserUsecase) *authController {
 	return &authController{
 		authUC: authUC,
 	}
 }
 
-func (a *authController) Register(c *gin.Context) {
+func (a *authController) Signup(c *gin.Context) {
 	var req dto.SignupRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -47,7 +40,7 @@ func (a *authController) Register(c *gin.Context) {
 		})
 	}
 
-	user, accessToken, refreshToken, err := a.authUC.Register(c, req)
+	user, accessToken, refreshToken, err := a.authUC.Signup(c, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		errType := "server_error"
