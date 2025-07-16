@@ -8,6 +8,7 @@ import (
 	"github.com/AndikaPrasetia/wash-shoe/internal/dto"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
 	"github.com/AndikaPrasetia/wash-shoe/internal/usecase"
+	utils "github.com/AndikaPrasetia/wash-shoe/internal/utils/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,11 +34,17 @@ func (a *authController) Signup(c *gin.Context) {
 		return
 	}
 
+	if err := utils.ValidatePassword(req.Password, 8, 64); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	if req.Password != req.ConfirmPassword {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "password_missmatch",
 			"message": "Password and confirmation password does not match",
 		})
+		return
 	}
 
 	user, accessToken, refreshToken, err := a.authUC.Signup(c, req)

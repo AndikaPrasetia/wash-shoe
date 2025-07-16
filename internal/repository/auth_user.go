@@ -52,13 +52,11 @@ func (r *authUserRepo) Signup(ctx context.Context, arg user.CreateAuthUserParams
 
 func (r *authUserRepo) Login(ctx context.Context, email, password string) (*model.AuthUser, error) {
 	auth, err := r.q.GetAuthUserByEmail(ctx, email)
-	if err != nil {
-		// Tangani khusus error tidak ditemukan
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrUserNotFound
-		}
-		return nil, err
+	// handle error user not found
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
 	}
+
 	return &model.AuthUser{
 		ID:           auth.ID.String(),
 		Email:        auth.Email,
