@@ -88,6 +88,7 @@ func (s *Server) initRoute() {
 	protectedGroup.Use(authMiddleware.Middleware()) // <<< MIDDLEWARE DITERAPKAN DI SINI
 	{
 		protectedGroup.POST("/auth/logout", authController.Logout) // <<< ENDPOINT LOGOUT DIPINDAH KE SINI
+		protectedGroup.POST("/home", controller.NewHomeHandler().Home)
 	}
 }
 
