@@ -207,3 +207,7 @@ func (uc *authUserUsecase) Logout(ctx context.Context, userID string) error {
 
 	return err
 }
+
+func (uc *authUserUsecase) Delete(ctx context.Context, id pgtype.UUID) error {
+    return uc.authRepo.Delete(ctx, id)
+}

@@ -15,6 +15,7 @@ import (
 type AuthMiddleware interface {
 	Middleware() gin.HandlerFunc
 	RequireRole(roles ...string) gin.HandlerFunc
+	RequireSelfOrAdmin() gin.HandlerFunc
 }
 
 type authMiddleware struct {
@@ -105,6 +106,28 @@ func (a *authMiddleware) RequireRole(roles ...string) gin.HandlerFunc {
 				"message": "Forbidden access",
 			})
 			return
+		}
+		c.Next()
+	}
+}
+
+func (a *authMiddleware) RequireSelfOrAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, exists := c.Get("user")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Unauthorized"})
+			return
+		}
+
+		authUser := user.(model.User)
+		targetID := c.Param("id")
+
+		// Jika bukan admin, cek apakah targetID sama dengan user ID
+		if authUser.Role != "admin" {
+			if targetID != authUser.ID {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "Forbidden access"})
+				return
+			}
 		}
 		c.Next()
 	}

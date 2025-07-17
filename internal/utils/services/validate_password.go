@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"unicode"
 )
 
@@ -9,8 +10,12 @@ import (
 // min = panjang minimal (bisa 8, 10, 12 – terserah kebijakan)
 // max = panjang maksimal (umumnya 64 untuk batasi DoS regex)
 func ValidatePassword(password string, min, max int) error {
-	if len(password) < min || len(password) > max {
-		return errors.New("password must be between " + string(rune(min)) + "-" + string(rune(max)) + " characters")
+	n := len(password)
+	if n < min {
+		return fmt.Errorf("password must be at least %d characters", min)
+	}
+	if n > max {
+		return fmt.Errorf("password must be at most %d characters", max)
 	}
 
 	var (

@@ -12,10 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/AndikaPrasetia/wash-shoe/internal/config"
-	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
-	"github.com/AndikaPrasetia/wash-shoe/internal/delivery/controller"
+	"github.com/AndikaPrasetia/wash-shoe/internal/delivery/handler"
 	"github.com/AndikaPrasetia/wash-shoe/internal/middleware"
 	"github.com/AndikaPrasetia/wash-shoe/internal/repository"
+	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/usecase"
 	utils "github.com/AndikaPrasetia/wash-shoe/internal/utils/services"
 	"github.com/gin-gonic/gin"
@@ -72,14 +72,15 @@ func NewServer() *Server {
 }
 
 func (s *Server) initRoute() {
-	// Buat controller
-	authController := controller.NewAuthController(s.authUC)
-	
+	// Buat handler
+	authHandler := handler.NewAuthHandler(s.authUC)
+	userHandler := handler.NewUserHandler(usecase.NewUserUsecase(repository.NewUserRepo(s.querier)))
+
 	// Grup publik (tanpa middleware)
 	publicGroup := s.engine.Group("/api/v1")
 	{
-		publicGroup.POST("/auth/signup", authController.Signup)
-		publicGroup.POST("/auth/login", authController.Login)
+		publicGroup.POST("/auth/signup", authHandler.Signup)
+		publicGroup.POST("/auth/login", authHandler.Login)
 	}
 
 	// Grup proteksi (dengan middleware)
@@ -87,8 +88,11 @@ func (s *Server) initRoute() {
 	protectedGroup := s.engine.Group("/api/v1")
 	protectedGroup.Use(authMiddleware.Middleware()) // <<< MIDDLEWARE DITERAPKAN DI SINI
 	{
-		protectedGroup.POST("/auth/logout", authController.Logout) // <<< ENDPOINT LOGOUT DIPINDAH KE SINI
-		protectedGroup.POST("/home", controller.NewHomeHandler().Home)
+		protectedGroup.POST("/auth/logout", authHandler.Logout) // <<< ENDPOINT LOGOUT DIPINDAH KE SINI
+		protectedGroup.POST("/home", handler.NewHomeHandler().Home)
+		protectedGroup.DELETE("/users/:id",
+			authMiddleware.RequireSelfOrAdmin(),
+			userHandler.Delete)
 	}
 }
 
