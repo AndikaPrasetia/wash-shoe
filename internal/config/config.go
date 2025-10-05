@@ -35,14 +35,22 @@ type TokenConfig struct {
 	RefreshTokenLifeTime time.Duration
 }
 
+type RedisConfig struct {
+	Addr     string
+	Password string
+	DB       int
+}
+
 type Config struct {
 	DBConfig
 	APIConfig
 	TokenConfig
+	RedisConfig
 }
 
 func NewConfig() (*Config, error) {
 	cfg := &Config{}
+
 	err := cfg.readConfig()
 	if err != nil {
 		return nil, err
@@ -76,16 +84,23 @@ func (c *Config) readConfig() error {
 		AppName:              os.Getenv("APP_NAME"),
 		JwtSecretKey:         []byte(os.Getenv("JWT_SECRET")),
 		JwtSigningMethod:     jwt.SigningMethodHS256,
-		AccessTokenLifeTime:  time.Duration(accessExp),
-		RefreshTokenLifeTime: time.Duration(refreshExp),
+		AccessTokenLifeTime:  time.Duration(accessExp) * time.Minute,
+		RefreshTokenLifeTime: time.Duration(refreshExp) * time.Minute,
 	}
 
-	if c.Host == "" ||
-		c.Port == "" ||
-		c.Username == "" ||
-		c.Password == "" ||
-		c.APIHost == "" ||
-		c.APIPort == "" {
+	redisDB, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
+	c.RedisConfig = RedisConfig{
+		Addr:     os.Getenv("REDIS_ADDR"),
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB:       redisDB,
+	}
+
+	if c.DBConfig.Host == "" ||
+		c.DBConfig.Port == "" ||
+		c.DBConfig.Username == "" ||
+		c.DBConfig.Password == "" ||
+		c.APIConfig.APIHost == "" ||
+		c.APIConfig.APIPort == "" {
 		return fmt.Errorf("there's an empty payload")
 	}
 
@@ -93,7 +108,7 @@ func (c *Config) readConfig() error {
 }
 
 func (c *Config) GetDomain() string {
-	return c.Domain
+	return c.APIConfig.Domain
 }
 
 func (c *Config) IsSecure() bool {

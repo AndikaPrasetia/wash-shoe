@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/AndikaPrasetia/wash-shoe/internal/utils/model-utils"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -73,4 +74,44 @@ func HashToken(token string) string {
 	h := sha256.New()
 	h.Write([]byte(token))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// ParseToken parses a JWT token and returns its claims.
+func ParseToken(tokenString string) (modelutils.JwtPayloadClaim, error) {
+	// Load secret
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		return modelutils.JwtPayloadClaim{}, errors.New("JWT_SECRET not set in environment")
+	}
+
+	// Parse token with claims
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&modelutils.JwtPayloadClaim{},
+		func(token *jwt.Token) (any, error) {
+			// Validate signing method
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(secret), nil
+		},
+	)
+
+	// Handle parsing error
+	if err != nil {
+		return modelutils.JwtPayloadClaim{}, fmt.Errorf("token parsing failed: %w", err)
+	}
+
+	// Validate token
+	if !token.Valid {
+		return modelutils.JwtPayloadClaim{}, errors.New("invalid token")
+	}
+
+	// Extract claims
+	claims, ok := token.Claims.(*modelutils.JwtPayloadClaim)
+	if !ok {
+		return modelutils.JwtPayloadClaim{}, errors.New("invalid token claims")
+	}
+
+	return *claims, nil
 }

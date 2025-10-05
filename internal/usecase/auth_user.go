@@ -9,6 +9,7 @@ import (
 
 	"github.com/AndikaPrasetia/wash-shoe/internal/dto"
 	"github.com/AndikaPrasetia/wash-shoe/internal/model"
+	"github.com/AndikaPrasetia/wash-shoe/internal/redis"
 	"github.com/AndikaPrasetia/wash-shoe/internal/repository"
 	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	utils "github.com/AndikaPrasetia/wash-shoe/internal/utils/services"
@@ -22,6 +23,8 @@ var (
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrUserNotFound       = errors.New("user not found")
 	ErrTokenNotFound      = errors.New("token not found")
+	ErrInvalidToken       = errors.New("invalid token")
+	ErrTokenRevoked       = errors.New("token has been revoked")
 )
 
 // AuthUserUsecase defines business logic for auth users
@@ -30,16 +33,18 @@ type AuthUserUsecase interface {
 	GetByEmail(ctx context.Context, email string) (*model.AuthUser, error)
 	Login(ctx context.Context, req dto.LoginRequest) (string, string, error)
 	Logout(ctx context.Context, userID string) error
+	RefreshToken(ctx context.Context, refreshToken string) (string, string, error)
 }
 
 type authUserUsecase struct {
 	authRepo repository.AuthUserRepo
 	userRepo repository.UserRepo
+	redisCli *redis.RedisClient
 }
 
 // NewAuthUserUsecase creates a new AuthUserUsecase
-func NewAuthUserUsecase(authRepo repository.AuthUserRepo, userRepo repository.UserRepo) AuthUserUsecase {
-	return &authUserUsecase{authRepo: authRepo, userRepo: userRepo}
+func NewAuthUserUsecase(authRepo repository.AuthUserRepo, userRepo repository.UserRepo, redisCli *redis.RedisClient) AuthUserUsecase {
+	return &authUserUsecase{authRepo: authRepo, userRepo: userRepo, redisCli: redisCli}
 }
 
 // Signup handles user signup: validates input, creates auth+public user,
@@ -93,15 +98,12 @@ func (uc *authUserUsecase) Signup(ctx context.Context, req dto.SignupRequest) (m
 	if err != nil {
 		return model.AuthUser{}, "", "", fmt.Errorf("generate tokens: %w", err)
 	}
-	// 7. Store refresh token
+	// 7. Store refresh token hash in Redis with expiration
 	rtHash := utils.HashToken(refreshToken)
-	_, err = uc.authRepo.CreateRefreshToken(ctx, user.CreateRefreshTokenParams{
-		UserID:    pgtype.UUID{Bytes: uuidFromString(authUser.ID), Valid: true},
-		TokenHash: rtHash,
-		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(30 * 24 * time.Hour), Valid: true},
-	})
+	// Set TTL to refresh token lifetime
+	err = uc.redisCli.GetClient().Set(ctx, rtHash, "valid", 7*24*time.Hour).Err() // 7 days
 	if err != nil {
-		return model.AuthUser{}, "", "", fmt.Errorf("store refresh token: %w", err)
+		return model.AuthUser{}, "", "", fmt.Errorf("store refresh token in Redis: %w", err)
 	}
 	// 8. Audit log
 	_, _ = uc.authRepo.CreateAuditLog(ctx, user.CreateAuditLogParams{
@@ -158,15 +160,12 @@ func (uc *authUserUsecase) Login(ctx context.Context, req dto.LoginRequest) (str
 		return "", "", err
 	}
 
-	// save refresh token
+	// Store refresh token hash in Redis with expiration
 	rtHash := utils.HashToken(refreshToken)
-	_, err = uc.authRepo.CreateRefreshToken(ctx, user.CreateRefreshTokenParams{
-		UserID:    pgtype.UUID{Bytes: uuidFromString(authUser.ID), Valid: true},
-		TokenHash: rtHash,
-		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(30 * 24 * time.Hour), Valid: true},
-	})
+	// Set TTL to refresh token lifetime
+	err = uc.redisCli.GetClient().Set(ctx, rtHash, "valid", 7*24*time.Hour).Err() // 7 days
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("store refresh token in Redis: %w", err)
 	}
 
 	// update last login
@@ -206,6 +205,55 @@ func (uc *authUserUsecase) Logout(ctx context.Context, userID string) error {
 	})
 
 	return err
+}
+
+// RefreshToken generates new access and refresh tokens using a valid refresh token
+func (uc *authUserUsecase) RefreshToken(ctx context.Context, refreshToken string) (string, string, error) {
+	// Parse refresh token
+	claims, err := utils.ParseToken(refreshToken)
+	if err != nil {
+		return "", "", ErrInvalidToken
+	}
+
+	// Check if token is a refresh token
+	if claims.Type != "refresh" {
+		return "", "", ErrInvalidToken
+	}
+
+	// Check if token is expired
+	if claims.ExpiresAt.Before(time.Now()) {
+		return "", "", ErrInvalidToken
+	}
+
+	// Check if refresh token is blacklisted in Redis
+	rtHash := utils.HashToken(refreshToken)
+	val, err := uc.redisCli.GetClient().Get(ctx, rtHash).Result()
+	if err != nil || val != "valid" {
+		return "", "", ErrTokenRevoked
+	}
+
+	// Generate new tokens
+	accessToken, newRefreshToken, err := utils.GenerateTokenPair(claims.Subject)
+	if err != nil {
+		return "", "", fmt.Errorf("generate tokens: %w", err)
+	}
+
+	// Blacklist the old refresh token
+	err = uc.redisCli.GetClient().Del(ctx, rtHash).Err()
+	if err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("Failed to blacklist old refresh token: %v\n", err)
+	}
+
+	// Store new refresh token hash in Redis with expiration
+	newRtHash := utils.HashToken(newRefreshToken)
+	// Set TTL to refresh token lifetime
+	err = uc.redisCli.GetClient().Set(ctx, newRtHash, "valid", 7*24*time.Hour).Err() // 7 days
+	if err != nil {
+		return "", "", fmt.Errorf("store new refresh token in Redis: %w", err)
+	}
+
+	return accessToken, newRefreshToken, nil
 }
 
 func (uc *authUserUsecase) Delete(ctx context.Context, id pgtype.UUID) error {

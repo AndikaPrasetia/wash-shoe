@@ -14,6 +14,7 @@ import (
 	"github.com/AndikaPrasetia/wash-shoe/internal/config"
 	"github.com/AndikaPrasetia/wash-shoe/internal/delivery/handler"
 	"github.com/AndikaPrasetia/wash-shoe/internal/middleware"
+	"github.com/AndikaPrasetia/wash-shoe/internal/redis"
 	"github.com/AndikaPrasetia/wash-shoe/internal/repository"
 	"github.com/AndikaPrasetia/wash-shoe/internal/sqlc/user"
 	"github.com/AndikaPrasetia/wash-shoe/internal/usecase"
@@ -22,14 +23,15 @@ import (
 )
 
 type Server struct {
-	engine  *gin.Engine
-	server  *http.Server
-	jwtSvc  utils.JwtService
-	dbPool  *pgxpool.Pool
-	querier user.Querier
-	authUC  usecase.AuthUserUsecase
-	host    string
-	port    string
+	engine    *gin.Engine
+	server    *http.Server
+	jwtSvc    utils.JwtService
+	dbPool    *pgxpool.Pool
+	querier   user.Querier
+	authUC    usecase.AuthUserUsecase
+	host      string
+	port      string
+	redisCli  *redis.RedisClient
 }
 
 func NewServer() *Server {
@@ -40,11 +42,11 @@ func NewServer() *Server {
 
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		cfg.Host,
-		cfg.Port,
-		cfg.Username,
-		cfg.Password,
-		cfg.Database,
+		cfg.DBConfig.Host,
+		cfg.DBConfig.Port,
+		cfg.DBConfig.Username,
+		cfg.DBConfig.Password,
+		cfg.DBConfig.Database,
 	)
 
 	dbPool, err := pgxpool.New(context.Background(), dsn)
@@ -52,21 +54,28 @@ func NewServer() *Server {
 		panic(fmt.Errorf("failed to connect to database: %v", err))
 	}
 
+	// Initialize Redis client
+	redisCli, err := redis.NewRedisClient(cfg.RedisConfig)
+	if err != nil {
+		panic(fmt.Errorf("failed to connect to Redis: %v", err))
+	}
+
 	queries := user.New(dbPool) // *user.Queries, implements user.Querier
 
 	authRepo := repository.NewAuthUserRepo(queries)
 	userRepo := repository.NewUserRepo(queries)
-	authUC := usecase.NewAuthUserUsecase(authRepo, userRepo)
+	authUC := usecase.NewAuthUserUsecase(authRepo, userRepo, redisCli)
 
 	// misalnya lanjutkan setup Server
 	s := &Server{
-		engine:  gin.Default(),
-		jwtSvc:  utils.NewJwtService(cfg.TokenConfig),
-		querier: queries,
-		authUC:  authUC,
-		host:    cfg.APIHost,
-		port:    cfg.APIPort,
-		dbPool:  dbPool,
+		engine:   gin.Default(),
+		jwtSvc:   utils.NewJwtService(cfg.TokenConfig),
+		querier:  queries,
+		authUC:   authUC,
+		host:     cfg.APIConfig.APIHost,
+		port:     cfg.APIConfig.APIPort,
+		dbPool:   dbPool,
+		redisCli: redisCli,
 	}
 	return s
 }
@@ -81,6 +90,8 @@ func (s *Server) initRoute() {
 	{
 		publicGroup.POST("/auth/signup", authHandler.Signup)
 		publicGroup.POST("/auth/login", authHandler.Login)
+		// Add refresh token endpoint
+		publicGroup.POST("/auth/refresh", authHandler.RefreshToken)
 	}
 
 	// Grup proteksi (dengan middleware)
@@ -117,6 +128,7 @@ func (s *Server) Run() {
 
 	<-quit
 	s.dbPool.Close()
+	s.redisCli.Close()
 	fmt.Println("\nShutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -131,3 +131,29 @@ func (h *authHandler) Logout(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+// RefreshToken handles refresh token requests
+func (h *authHandler) RefreshToken(c *gin.Context) {
+	var req dto.RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	accessToken, refreshToken, err := h.authUC.RefreshToken(c.Request.Context(), req.RefreshToken)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidToken) || errors.Is(err, usecase.ErrTokenRevoked) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or revoked refresh token"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	response := dto.RefreshTokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}
+
+	c.JSON(http.StatusOK, response)
+}

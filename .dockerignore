@@ -1,0 +1,17 @@
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+.air.toml
+.air.log
+*.log
+node_modules
+.env
+example.env
+bin/
+tmp/
+dist/
+.DS_Store
+.vscode/
+.idea/

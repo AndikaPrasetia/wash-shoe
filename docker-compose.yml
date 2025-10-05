@@ -1,0 +1,88 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: washshoe-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-washshoe}
+      POSTGRES_USER: ${DB_USER:-washshoe_user}
+      POSTGRES_PASSWORD: ${DB_PASS:-washshoe_pass}
+    ports:
+      - "5433:5432"  # Changed from 5432 to 5433 to avoid conflicts
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-washshoe_user} -d ${DB_NAME:-washshoe}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - washshoe-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: washshoe-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"  # Changed from 6379 to 6380 to avoid conflicts
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - washshoe-network
+
+  # Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: washshoe-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-washshoe_user}
+      - DB_PASS=${DB_PASS:-washshoe_pass}
+      - DB_NAME=${DB_NAME:-washshoe}
+      - DB_DRIVER=postgres
+      - API_HOST=0.0.0.0
+      - API_PORT=8080
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - APP_NAME=${APP_NAME:-wash-shoe}
+      - JWT_SECRET=${JWT_SECRET:-default_secret}
+      - ACCESS_TOKEN_EXP=${ACCESS_TOKEN_EXP:-15}
+      - REFRESH_TOKEN_EXP=${REFRESH_TOKEN_EXP:-10080}
+    networks:
+      - washshoe-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health || curl -f
+http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  washshoe-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
