@@ -242,7 +242,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ## Contact
 
 Name: Andika Prasetia
-Email: andikaprasetia@example.com
+Email: andikaprasetia@proton.me
 Project Link: [https://github.com/AndikaPrasetia/wash-shoe](https://github.com/AndikaPrasetia/wash-shoe)
 
 ---
